@@ -1,0 +1,18 @@
+{
+  "type": "aws/s3/bucket/notification",
+  "originArtifact": {
+    "provider": "aws",
+    "resource": "calc-in"
+  },
+  "body": {
+    "bucket": "calc-in",
+    "notification": {
+      "functionARN": "arn:aws:lambda:us-east-1:839022827155:function:s3calc-node",
+      "events": [
+        "s3:ObjectCreated:*"
+      ],
+      "objectPrefixes": []
+    },
+    "notificationId": "6a03d33b-3495-4a4e-8532-d9aef9330a4e"
+  }
+}

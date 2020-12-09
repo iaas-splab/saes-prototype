@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<title>SAES Prototype</title>
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+<style>
+	body {
+		text-align: center;
+		display: grid;
+		justify-content: center;
+		align-content: center;
+		font-family: sans-serif;
+	}
+	main {
+		display: grid;
+		justify-content: center;
+		align-content: center;
+		font-family: sans-serif;
+	}
+	
+</style>
+
+<h1 style="margin-top: 1em">SAES Prototype</h1>
+
+<main style="width: 1024px; height: 768px; outline: 1px solid black;"></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@ustutt/grapheditor-webcomponent@latest/_bundles/grapheditor-webcomponent.js"></script>
+<template id="graph-display-template">
+	<template id="graph-template">
+		<svg>
+			<style>
+				svg {width:100%; height: 100%}
+				.node {fill: rgba(0,0,0,0.1);}
+				.link-handle {display: none; }
+				.text {font-size: 20px; font-family: sans-serif; fill: black; text-overflow: ellipsis;}
+			</style>
+			<defs>
+				<g id="default" data-template-type="node">
+					<rect x="0" y="0" width="160" height="50"></rect>
+					<text class="text" data-content="line1" x="0" y="20" width="160"></text>
+					<text class="text" data-content="line2" x="0" y="40" width="160"></text>
+				</g>
+			</defs>
+		</svg>
+	</template>
+	<div style="width: 800px; height: 600px; outline: 1px solid gray;">
+	<network-graph classes="red blue" mode="layout" zoom="both" svg-template="#graph-template"></network-graph>
+	</div>
+
+
+	<script>
+		//window.SAESnodes = [ {id: 1, line1: '1 L 1'}, {id: 2, line1: 'BLUE 1', line2: 'BLUE 2'} ];
+		//window.SAESedges = [ {source: 1, target: 2} ];
+		/*var graph = document.querySelector('network-graph');
+		graph.setZoomMode('none');
+		
+		let y = 20 - 70;
+		for (let i of window.SAESnodes) {
+			let node = JSON.parse(JSON.stringify(i));
+			node.x = 30;
+			node.y = (y = y + 70);
+			console.log("adding node ", node);
+			graph.addNode(node, true);
+		}
+		for (let i of window.SAESedges) {
+			let edge = JSON.parse(JSON.stringify(i));
+			edge.markerEnd = 'arrow';
+			console.log("adding edge ", edge);
+			graph.addEdge(edge, true);
+		}*/
+	</script>
+</template>
+<script>
+"use strict";
+let socket = new WebSocket("ws://" + location.host + "/ws");
+
+function sendMessage(msg) {
+	socket.send(msg);
+}
+let msgs = []
+let activeWait = null;
+socket.onmessage = function(event) {
+	if (activeWait) {
+		console.debug("event: activeWait");
+		let callback = activeWait;
+		activeWait = null;
+		callback(event.data);
+	} else {
+		console.debug("event: push");
+		msgs.push(event.data);
+	}
+}
+async function receiveMessage() {
+	if (msgs.length > 0) {
+		console.log("recv: message available");
+		return debug.shift();
+	} else {
+		console.debug("recv: awaiting message");
+		return await new Promise((resolve, reject) => { activeWait = function(val) {
+			console.debug("promise: resolving ");
+			resolve(val);
+		}})
+	}
+}
+
+function fromHTML(htmlString) {
+	/* from https://stackoverflow.com/revisions/494348/28 */
+	var div = document.createElement('div');
+	div.innerHTML = htmlString.trim();
+
+	return div.firstChild; 
+}
+
+async function main() {
+	let msg;
+	let main = document.querySelector("main");
+	main.innerText = "Connecting...";
+	while (msg = await receiveMessage()) {
+		console.log(msg);
+		let splitlocation = msg.indexOf(" ");
+		let msgtype = splitlocation > -1 ? msg.substr(0, splitlocation) : msg;
+		let payload = splitlocation > -1 ? JSON.parse(msg.substr(splitlocation + 1)) : null;
+		
+		
+		switch (msgtype) {
+			case "SERVER_HELLO": {
+				main.innerText = "Connected!";
+				socket.send("CLIENT_HELLO");
+				break;
+			}
+			case "ERROR": {
+				main.innerHTML = '<div class="alert alert-danger" role="alert" id="msgbox"></div><br><button type="button" class="btn btn-primary" disabled id="buttonRestart">Click to restart</button>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = "ERROR: " + payload.message;
+					document.getElementById("buttonRestart").onclick = () => { location.reload() };
+					document.getElementById("buttonRestart").disabled = false;
+				});
+				break;
+			}
+			case "DONE": {
+				main.innerHTML = '<div class="alert alert-primary" role="alert" id="msgbox"></div><br><button type="button" class="btn btn-primary" disabled id="buttonRestart">Return to main menu</button>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = payload.message;
+					document.getElementById("buttonRestart").onclick = () => { location.reload() };
+					document.getElementById("buttonRestart").disabled = false;
+				});
+				break;
+			}
+			case "STATUS": {
+				main.innerHTML = '<div class="alert alert-primary" role="alert" id="msgbox"></div>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = "Status: " + payload.message;
+				});
+				break;
+			}
+			case "TEXTBOX": {
+				main.innerHTML = '<div class="alert alert-primary" role="alert" id="msgbox"></div><br><input type="text" class="form-control" placeholder="Response" id="input"><br><button type="button" class="btn btn-primary" disabled id="buttonSubmit">Click to submit</button>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = payload.message;
+					document.getElementById("buttonSubmit").onclick = () => { socket.send(JSON.stringify({reply: document.getElementById("input").value})); };
+					document.getElementById("buttonSubmit").disabled = false;
+				});
+				break;
+			}
+			case "SINGLE_CHOICE": {
+				main.innerHTML = '<div class="alert alert-primary" role="alert" id="msgbox"></div>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = "Please select below: " + payload.message;
+					for (let choice of payload.choices) {
+						main.appendChild(fromHTML('<br>'));
+						let button = fromHTML('<button type="button" class="btn btn-secondary"></button>');
+						button.innerText = choice;
+						button.onclick = () => { socket.send(JSON.stringify({reply: choice})); };
+						main.appendChild(button);
+					}
+				});
+				break;
+			}
+			case "FILE_UPLOAD": {
+				main.innerHTML = '<div class="alert alert-primary" role="alert" id="msgbox"></div><br><input type="file" class="form-control" id="input"><br><button type="button" class="btn btn-primary" disabled id="buttonSubmit">Click to submit</button>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = payload.message;
+					document.getElementById("buttonSubmit").onclick = async () => {
+						let file = document.getElementById("input").files[0];
+						if (!file) {
+							alert("Please select a file before continuing.");
+							return;
+						}
+						let text = await new Promise((resolve, reject) => {
+							let reader = new FileReader;
+							reader.onload = (e) => resolve(e.target.result);
+							reader.onerror = (e) => { alert("The browser denied access to the file you selected."); reject(e); };
+							reader.readAsText(file, "UTF-8");
+						});
+						socket.send(JSON.stringify({reply: text}));
+					};
+					
+					document.getElementById("buttonSubmit").disabled = false;
+				});
+				break;
+			}
+			case "FILE_UPLOAD_BINARY": {
+				main.innerHTML = '<div class="alert alert-primary" role="alert" id="msgbox"></div><br><input type="file" class="form-control" id="input"><br><button type="button" class="btn btn-primary" disabled id="buttonSubmit">Click to submit</button>';
+				queueMicrotask(() => {
+					document.getElementById("msgbox").innerText = payload.message;
+					document.getElementById("buttonSubmit").onclick = async () => {
+						let file = document.getElementById("input").files[0];
+						if (!file) {
+							alert("Please select a file before continuing.");
+							return;
+						}
+						let binary = await new Promise((resolve, reject) => {
+							let reader = new FileReader;
+							reader.onload = (e) => resolve(e.target.result);
+							reader.onerror = (e) => { alert("The browser denied access to the file you selected."); reject(e); };
+							reader.readAsBinaryString(file);
+						});
+						socket.send(JSON.stringify({reply: btoa(binary)}));
+					};
+					
+					document.getElementById("buttonSubmit").disabled = false;
+				});
+				break;
+			}
+			case "SHOW_GRAPH": {
+				window.SAESedges = [];
+				for (let e of payload.edges) {
+					window.SAESedges.push({
+						source: btoa(e.source).replace(/==*$/,""),
+						target: btoa(e.target).replace(/==*$/,"")
+					});
+					payload.edges
+				}
+				window.SAESnodes = [];
+				for (let v of payload.vertices) {
+					let props = "";
+					for (let propname in v) {
+						if (propname.startsWith("_") || propname === "type") {
+							continue;
+						}
+						let propdisplayname;
+						if (propname.length > 5) {
+							propdisplayname = propname.substr(0,4) + "…";
+						} else {
+							propdisplayname = propname;
+						}
+						props += ", " + propdisplayname + ":" + v[propname];
+					}
+					props = props.substr(2);
+					window.SAESnodes.push({
+						id: btoa(v._id).replace(/==*$/,""),
+						line1: v.type,
+						line2: props
+					});
+				}
+				main.innerHTML = document.getElementById("graph-display-template").innerHTML;
+				setTimeout(() => {
+					var graph = document.querySelector('network-graph');
+					graph.setZoomMode('none');
+					
+					let y = 20 - 70;
+					for (let i of window.SAESnodes) {
+						let node = JSON.parse(JSON.stringify(i));
+						node.x = 30;
+						node.y = (y = y + 70);
+						console.log("adding node ", node);
+						graph.addNode(node, true);
+					}
+					for (let i of window.SAESedges) {
+						let edge = JSON.parse(JSON.stringify(i));
+						edge.markerEnd = 'arrow';
+						console.log("adding edge ", edge);
+						graph.addEdge(edge, true);
+					}
+				}, 100);
+				break;
+			}
+		}
+		
+
+	}
+}
+main();
+
+</script>

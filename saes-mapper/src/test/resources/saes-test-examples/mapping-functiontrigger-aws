@@ -1,0 +1,39 @@
+{
+  "match": {
+    "$.type": "aws/s3/bucket/notification",
+    "$.body.notification.events": "s3:*"
+  },
+  "targetType": "case/eventsource",
+  "targetProperties": [
+    {
+      "name": "event",
+      "value": {
+        "type": "lookup",
+        "in": "aws/objectstorage-events",
+        "wrapped": {
+          "type": "regex",
+          "regex": "^s3:([^:]*)",
+          "replacement": "$1",
+          "wrapped": {
+            "type": "jsonPath",
+            "jsonPath": "$.body.notification.events",
+            "expandList": true
+          }
+        }
+      }
+    },
+    {
+      "name": "connectedFunction",
+      "value": {
+        "type": "regex",
+        "regex": "^arn:aws:lambda:.*:function:(.*)$",
+        "replacement": "$1",
+        "wrapped": {
+          "type": "jsonPath",
+          "jsonPath": "$.body.notification.functionARN",
+          "expandList": true
+        }
+      }
+    }
+  ]
+}
