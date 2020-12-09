@@ -1,0 +1,15 @@
+de.uni_stuttgart.iaas.saes.api_interaction
+de.uni_stuttgart.iaas.saes.api_interaction.plugin.aws
+de.uni_stuttgart.iaas.saes.api_interaction.plugin.azure
+de.uni_stuttgart.iaas.saes.code_analysis
+de.uni_stuttgart.iaas.saes.code_analysis.plugin.java
+de.uni_stuttgart.iaas.saes.common
+de.uni_stuttgart.iaas.saes.common.db
+de.uni_stuttgart.iaas.saes.common.extr
+de.uni_stuttgart.iaas.saes.common.facts
+de.uni_stuttgart.iaas.saes.common.util
+de.uni_stuttgart.iaas.saes.deployment_model
+de.uni_stuttgart.iaas.saes.knowledge_base.domain
+de.uni_stuttgart.iaas.saes.mapper
+de.uni_stuttgart.iaas.saes.mapper.plugin.aws
+de.uni_stuttgart.iaas.saes.ui.backend
